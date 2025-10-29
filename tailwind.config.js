@@ -12,10 +12,10 @@ module.exports = {
         'bg-secondary': '#141414',
         'text-primary': '#ffffff',
         'text-secondary': '#a0a0a0',
-        'accent': '#3b82f6',
-        'accent-hover': '#2563eb',
+        'accent': '#22c55e',
+        'accent-hover': '#16a34a',
         'border': '#262626',
-        'wave-active': '#3b82f6',
+        'wave-active': '#22c55e',
         'wave-inactive': '#2a2a2a',
       },
       keyframes: {

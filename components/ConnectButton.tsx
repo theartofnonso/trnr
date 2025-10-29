@@ -25,7 +25,7 @@ export default function ConnectButton() {
               cy="40"
               r="36"
               fill="none"
-              stroke="rgba(59, 130, 246, 0.3)"
+              stroke="rgba(34, 197, 94, 0.3)"
               strokeWidth="2"
             />
             <circle
@@ -33,7 +33,7 @@ export default function ConnectButton() {
               cy="40"
               r="36"
               fill="none"
-              stroke="#3b82f6"
+              stroke="#22c55e"
               strokeWidth="2"
               strokeDasharray="113"
               strokeDashoffset="56"
@@ -49,7 +49,7 @@ export default function ConnectButton() {
             relative w-20 h-20 rounded-full
             flex items-center justify-center
             bg-bg-secondary border-2 border-[#262626]
-            ${isConnected ? 'shadow-[0_0_20px_8px_rgba(59,130,246,0.4)]' : ''}
+            ${isConnected ? 'shadow-[0_0_20px_8px_rgba(34,197,94,0.4)]' : ''}
             transition-all duration-200
             ${isConnecting ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 active:scale-95'}
             focus:outline-none
