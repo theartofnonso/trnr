@@ -1,0 +1,80 @@
+'use client'
+
+import { useState, useEffect, useRef } from 'react'
+import { RealtimeAgent, RealtimeSession } from '@openai/agents/realtime'
+import { personalTrainerPrompt } from '@/config/personalTrainerPrompt'
+
+export function useVoiceAgent() {
+  const [isConnected, setIsConnected] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const sessionRef = useRef<RealtimeSession | null>(null)
+
+  const connect = async () => {
+    if (isConnected || sessionRef.current) return
+
+    setError(null)
+
+    try {
+      // Get ephemeral key from backend (required for WebRTC in browser)
+      const response = await fetch('/api/ephemeral-key')
+      if (!response.ok) {
+        throw new Error('Failed to get ephemeral key')
+      }
+      
+      const { ephemeralKey } = await response.json()
+      if (!ephemeralKey) {
+        throw new Error('No ephemeral key received')
+      }
+
+      const agent = new RealtimeAgent({
+        name: 'PersonalTrainer',
+        instructions: personalTrainerPrompt,
+      })
+
+      const session = new RealtimeSession(agent, { model: 'gpt-realtime' })
+      sessionRef.current = session
+
+      session.transport.on('disconnect', () => setIsConnected(false))
+      session.transport.on('error', (err: any) => {
+        setError(err?.message || 'Session error')
+        setIsConnected(false)
+      })
+
+      await session.connect({ apiKey: ephemeralKey })
+      setIsConnected(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to connect')
+      try {
+        sessionRef.current?.close()
+      } catch(err) {
+        console.error('Error closing session:', err)
+        // Ignore cleanup errors
+      }
+      sessionRef.current = null
+    }
+  }
+
+  const disconnect = async () => {
+    try {
+      sessionRef.current?.close()
+    } catch {
+      // Ignore cleanup errors
+    }
+    sessionRef.current = null
+    setIsConnected(false)
+    setError(null)
+  }
+
+  useEffect(() => {
+    return () => {
+      try {
+        sessionRef.current?.close()
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+  }, [])
+
+  return { isConnected, error, connect, disconnect }
+}
+
