@@ -6,13 +6,15 @@ import { personalTrainerPrompt } from '@/config/personalTrainerPrompt'
 
 export function useVoiceAgent() {
   const [isConnected, setIsConnected] = useState(false)
+  const [isConnecting, setIsConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const sessionRef = useRef<RealtimeSession | null>(null)
 
   const connect = async () => {
-    if (isConnected || sessionRef.current) return
+    if (isConnected || sessionRef.current || isConnecting) return
 
     setError(null)
+    setIsConnecting(true)
 
     try {
       // Get ephemeral key from backend (required for WebRTC in browser)
@@ -42,8 +44,10 @@ export function useVoiceAgent() {
 
       await session.connect({ apiKey: ephemeralKey })
       setIsConnected(true)
+      setIsConnecting(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect')
+      setIsConnecting(false)
       try {
         sessionRef.current?.close()
       } catch(err) {
@@ -75,6 +79,6 @@ export function useVoiceAgent() {
     }
   }, [])
 
-  return { isConnected, error, connect, disconnect }
+  return { isConnected, isConnecting, error, connect, disconnect }
 }
 

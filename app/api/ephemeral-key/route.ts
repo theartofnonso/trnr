@@ -1,50 +1,50 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from "next/server"
 
 /**
- * Generate an ephemeral client key for Realtime API WebRTC connection
- * 
- * Reference: https://openai.github.io/openai-agents-js/guides/voice-agents/quickstart/
+ * Generate an ephemeral client key for OpenAI Realtime API (WebRTC connection)
+ *
+ * Docs:
+ * https://api.openai.com/v1/realtime
+ * https://openai.github.io/openai-agents-js/guides/voice-agents/quickstart/
  */
-export async function GET(request: NextRequest) {
+export async function GET(_req: NextRequest) {
   try {
     const apiKey = process.env.OPENAI_API_KEY
-
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'OpenAI API key not configured' },
+        { error: "OpenAI API key not configured" },
         { status: 500 }
       )
     }
 
-    const response = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
-      method: 'POST',
+    // ✅ Correct endpoint for ephemeral client keys
+    const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         session: {
           type: 'realtime',
           model: 'gpt-realtime',
-        },
+        }
       }),
     })
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
-      throw new Error(error.error?.message || 'Failed to generate ephemeral key')
+      throw new Error(error.error?.message || "Failed to create Realtime session")
     }
 
     const data = await response.json()
-    
-    // Return the ephemeral key (starts with "ek_")
+
     return NextResponse.json({ ephemeralKey: data.value })
   } catch (error: any) {
-    console.error('Error generating ephemeral key:', error)
+    console.error("Error generating ephemeral session:", error)
     return NextResponse.json(
-      { error: error.message || 'Failed to generate ephemeral key' },
+      { error: error.message || "Failed to create Realtime session" },
       { status: 500 }
     )
   }
 }
-
