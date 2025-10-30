@@ -4,7 +4,7 @@ import { Power } from 'lucide-react'
 import { useVoiceAgent } from '@/hooks/useVoiceAgent'
 
 export default function ConnectButton() {
-  const { isConnected, isConnecting, error, connect, disconnect } = useVoiceAgent()
+  const { isConnected, isConnecting, connect, disconnect } = useVoiceAgent()
 
   const handleToggleConnection = async () => {
     if (isConnected) {
@@ -63,10 +63,6 @@ export default function ConnectButton() {
           )}
         </button>
       </div>
-
-      {error && (
-        <p className="text-sm text-red-500 max-w-sm text-center">{error}</p>
-      )}
     </div>
   )
 }
