@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { RealtimeAgent, RealtimeSession } from '@openai/agents/realtime'
+import { RealtimeAgent, RealtimeSession, RealtimeItem } from '@openai/agents/realtime'
 import { personalTrainerPrompt } from '@/config/personalTrainerPrompt'
 
 export function useVoiceAgent() {
   const [isConnected, setIsConnected] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [conversationHistory, setConversationHistory] = useState<RealtimeItem[]>([])
   const sessionRef = useRef<RealtimeSession | null>(null)
 
   const connect = async () => {
@@ -42,6 +43,12 @@ export function useVoiceAgent() {
         setIsConnected(false)
       })
 
+      // Listen for conversation history updates
+      session.on('history_updated', (history: RealtimeItem[]) => {
+        setConversationHistory(history)
+        console.log('Conversation updated:', history)
+      })
+
       await session.connect({ apiKey: ephemeralKey })
       setIsConnected(true)
       setIsConnecting(false)
@@ -69,6 +76,17 @@ export function useVoiceAgent() {
     setError(null)
   }
 
+  const getConversationHistory = () => {
+    return conversationHistory
+  }
+
+  const clearConversationHistory = () => {
+    setConversationHistory([])
+    if (sessionRef.current) {
+      sessionRef.current.updateHistory([])
+    }
+  }
+
   useEffect(() => {
     return () => {
       try {
@@ -79,6 +97,15 @@ export function useVoiceAgent() {
     }
   }, [])
 
-  return { isConnected, isConnecting, error, connect, disconnect }
+  return { 
+    isConnected, 
+    isConnecting, 
+    error, 
+    conversationHistory,
+    connect, 
+    disconnect, 
+    getConversationHistory,
+    clearConversationHistory
+  }
 }
 
