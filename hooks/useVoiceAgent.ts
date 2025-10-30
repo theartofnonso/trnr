@@ -19,7 +19,9 @@ export function useVoiceAgent() {
 
     try {
       // Get ephemeral key from backend (required for WebRTC in browser)
-      const response = await fetch('/api/ephemeral-key')
+      const response = await fetch('/api/ephemeral-key', {
+        cache: 'no-store',
+      })
       if (!response.ok) {
         throw new Error('Failed to get ephemeral key')
       }

@@ -7,6 +7,11 @@ import { NextRequest, NextResponse } from "next/server"
  * https://api.openai.com/v1/realtime
  * https://openai.github.io/openai-agents-js/guides/voice-agents/quickstart/
  */
+
+// Force dynamic rendering to prevent caching
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(_req: NextRequest) {
   try {
     const apiKey = process.env.OPENAI_API_KEY
