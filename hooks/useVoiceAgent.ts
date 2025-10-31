@@ -41,39 +41,50 @@ function formatConversationHistory(history: RealtimeItem[]): Conversation {
 async function extractAndPostExercises(history: RealtimeItem[]) {
   if (history.length === 0) return
 
-  try {
-    const conversation = formatConversationHistory(history)
-    console.log('[VoiceAgent] Extracting exercises and saving session', { messageCount: conversation.length })
+  const conversation = formatConversationHistory(history)
+  console.log('[VoiceAgent] Extracting exercises and saving session', { messageCount: conversation.length })
 
-    // Extract exercises and save to Supabase
-    await fetch('/api/extract-exercises', {
+  // Try to extract exercises and save to Supabase
+  try {
+    const extractResponse = await fetch('/api/extract-exercises', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ conversation }),
     })
-    console.log('[VoiceAgent] Exercises extracted and saved to Supabase')
 
-    // Also save full conversation to mem0 as fallback via API
-    try {
-      const mem0Response = await fetch('/api/mem0/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          conversation,
-          userId: DEFAULT_USER_ID,
-        }),
+    if (extractResponse.ok) {
+      console.log('[VoiceAgent] Exercises extracted and saved to Supabase')
+    } else {
+      const errorData = await extractResponse.json().catch(() => ({}))
+      console.error('[VoiceAgent] Failed to extract exercises:', {
+        status: extractResponse.status,
+        error: errorData
       })
-
-      if (mem0Response.ok) {
-        console.log('[VoiceAgent] Full conversation saved to Mem0')
-      } else {
-        console.error('[VoiceAgent] Failed to save conversation to Mem0')
-      }
-    } catch (err) {
-      console.error('[VoiceAgent] Error saving conversation to Mem0:', err)
     }
   } catch (err) {
-    console.error('[VoiceAgent] Error extracting exercises:', err)
+    console.error('[VoiceAgent] Error calling extract-exercises endpoint:', err)
+  }
+
+  // Always save to Mem0 regardless of extract-exercises result
+  try {
+    const mem0Response = await fetch('/api/mem0/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        conversation,
+        userId: DEFAULT_USER_ID,
+      }),
+    })
+
+    if (mem0Response.ok) {
+      console.log('[VoiceAgent] Full conversation saved to Mem0')
+    } else {
+      console.error('[VoiceAgent] Failed to save conversation to Mem0', {
+        status: mem0Response.status
+      })
+    }
+  } catch (err) {
+    console.error('[VoiceAgent] Error saving conversation to Mem0:', err)
   }
 }
 

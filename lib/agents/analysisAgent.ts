@@ -32,7 +32,7 @@ ${transcript}`
   try {
     console.log('[OpenAI] Extracting exercise data from conversation')
     const { object } = await generateObject({
-      model: openai('gpt-5'),
+      model: openai('gpt-4o'),
       schema: z.object({ exercises: ExerciseLogSchema }),
       prompt: extractionPrompt,
     })
