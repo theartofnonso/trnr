@@ -36,7 +36,7 @@ ${transcript}`
   try {
     // Wrap array schema in an object since generateObject requires object schema
     const { object } = await generateObject({
-      model: openai('gpt-4o'),
+      model: openai('gpt-5'),
       schema: z.object({ exercises: ExerciseLogSchema }),
       prompt: extractionPrompt,
       temperature: 0.1,

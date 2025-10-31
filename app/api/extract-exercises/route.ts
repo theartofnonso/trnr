@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { extractExerciseData } from "@/lib/agents/analysisAgent"
 import { supabase } from "@/lib/supabase"
+import { pushConversationToMem0 } from "@/lib/mem0"
 
 // Force dynamic rendering to prevent caching
 export const dynamic = 'force-dynamic'
@@ -28,10 +29,11 @@ export async function POST(req: NextRequest) {
     // Pass the JSON string to extractExerciseData
     const exercises = await extractExerciseData(conversationJson)
 
-    // Create a new workout session with exercises stored as JSONB
+    // Create a new workout session with conversation and exercises stored as JSONB
     const { data: session, error: sessionError } = await supabase!
       .from('workout_sessions')
       .insert({
+        conversation: conversation, // Store original conversation history
         exercises: exercises, // Store entire exercise array as JSONB
       })
       .select()
@@ -44,6 +46,9 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       )
     }
+
+    // Push conversation history to Mem0.ai
+    await pushConversationToMem0(conversation, "default_user_id")
 
     return NextResponse.json({ status: true})
   } catch (error: any) {
