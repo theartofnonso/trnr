@@ -57,7 +57,7 @@ export default function ConnectButton() {
           aria-label={isConnected ? 'Disconnect' : isConnecting ? 'Connecting...' : 'Connect'}
         >
           {isConnected ? (
-            <Power size={24} className="text-accent" />
+            <Power size={24} className="text-green-500" />
           ) : (
             <Power size={24} className="text-text-secondary" />
           )}
