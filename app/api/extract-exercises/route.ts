@@ -40,21 +40,16 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Convert conversation array to JSON string for extractExerciseData
-    const conversationJson = JSON.stringify(conversation, null, 2)
-
     console.log('[API] Extracting exercises using OpenAI', { messageCount: conversation.length })
-    // Pass the JSON string to extractExerciseData
-    const exercises = await extractExerciseData(conversationJson)
+    const exercises = await extractExerciseData(JSON.stringify(conversation, null, 2))
     console.log('[API] Exercises extracted', { exerciseCount: exercises.length })
 
-    // Create a new workout session with conversation and exercises stored as JSONB
     console.log('[API] Saving workout session to Supabase')
     const { data: session, error: sessionError } = await supabase!
       .from('workout_sessions')
       .insert({
-        conversation: conversation, // Store original conversation history
-        exercises: exercises, // Store entire exercise array as JSONB
+        conversation,
+        exercises,
       })
       .select()
       .single()

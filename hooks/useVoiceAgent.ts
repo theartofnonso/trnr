@@ -32,9 +32,7 @@ function formatConversationHistory(history: RealtimeItem[]): Conversation {
 
       if (!text) return null
 
-      // Ensure role is 'user' or 'assistant'
       const validRole = role === 'user' || role === 'assistant' ? role : 'user'
-
       return { role: validRole, content: text } as ConversationMessage
     })
     .filter((item): item is ConversationMessage => item !== null)
