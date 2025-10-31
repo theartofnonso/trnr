@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { extractExerciseData } from "@/lib/agents/analysisAgent"
 import { supabase } from "@/lib/supabase"
+import { ConversationMessage } from "@/lib/types/conversation"
 
 // Force dynamic rendering to prevent caching
 export const dynamic = 'force-dynamic'
@@ -22,29 +23,52 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Validate conversation structure
+    const isValidConversation = conversation.every(
+      (msg: any): msg is ConversationMessage =>
+        msg &&
+        typeof msg === 'object' &&
+        (msg.role === 'user' || msg.role === 'assistant') &&
+        typeof msg.content === 'string' &&
+        msg.content.length > 0
+    )
+
+    if (!isValidConversation) {
+      return NextResponse.json(
+        { error: 'Conversation must be an array of { role: "user" | "assistant", content: string }' },
+        { status: 400 }
+      )
+    }
+
     // Convert conversation array to JSON string for extractExerciseData
     const conversationJson = JSON.stringify(conversation, null, 2)
 
+    console.log('[API] Extracting exercises using OpenAI', { messageCount: conversation.length })
     // Pass the JSON string to extractExerciseData
     const exercises = await extractExerciseData(conversationJson)
+    console.log('[API] Exercises extracted', { exerciseCount: exercises.length })
 
-    // Create a new workout session with exercises stored as JSONB
+    // Create a new workout session with conversation and exercises stored as JSONB
+    console.log('[API] Saving workout session to Supabase')
     const { data: session, error: sessionError } = await supabase!
       .from('workout_sessions')
       .insert({
+        conversation: conversation, // Store original conversation history
         exercises: exercises, // Store entire exercise array as JSONB
       })
       .select()
       .single()
 
     if (sessionError || !session) {
-      console.error("Error creating workout session:", sessionError)
+      console.error("[API] Error creating workout session:", sessionError)
       return NextResponse.json(
         { error: "Failed to create workout session" },
         { status: 500 }
       )
     }
-
+    
+    console.log('[API] Workout session saved successfully', { sessionId: session.id })
+    
     return NextResponse.json({ status: true})
   } catch (error: any) {
     console.error("Error extracting exercise data:", error)

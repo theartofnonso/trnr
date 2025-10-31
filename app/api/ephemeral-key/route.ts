@@ -23,6 +23,7 @@ export async function GET(_req: NextRequest) {
     }
 
     // ✅ Correct endpoint for ephemeral client keys
+    console.log('[API] Requesting ephemeral key from OpenAI')
     const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
       method: "POST",
       headers: {
@@ -39,10 +40,12 @@ export async function GET(_req: NextRequest) {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
+      console.error('[API] OpenAI ephemeral key request failed:', error)
       throw new Error(error.error?.message || "Failed to create Realtime session")
     }
 
     const data = await response.json()
+    console.log('[API] Ephemeral key generated successfully')
 
     return NextResponse.json({ ephemeralKey: data.value })
   } catch (error: any) {
