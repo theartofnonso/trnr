@@ -9,7 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^2.0.59",
     "@openai/agents": "^0.2.1",
+    "@supabase/supabase-js": "^2.78.0",
+    "ai": "^5.0.85",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.427.0",
