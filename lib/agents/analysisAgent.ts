@@ -39,7 +39,6 @@ ${transcript}`
       model: openai('gpt-5'),
       schema: z.object({ exercises: ExerciseLogSchema }),
       prompt: extractionPrompt,
-      temperature: 0.1,
     })
 
     return object.exercises

@@ -1,61 +1,62 @@
-/**
- * Mem0.ai API integration for persisting conversation history
- */
-
 import MemoryClient from 'mem0ai'
 
 const MEM0_API_KEY = process.env.MEM0_API_KEY
-
-// Initialize Mem0 client (only if API key is configured)
-let mem0Client: MemoryClient | null = null
-
-if (MEM0_API_KEY) {
-    mem0Client = new MemoryClient({
-        apiKey: MEM0_API_KEY,
-    })
-}
+const mem0Client = MEM0_API_KEY ? new MemoryClient({ apiKey: MEM0_API_KEY }) : null
 
 export interface Mem0Message {
     role: 'user' | 'assistant'
     content: string
 }
 
-/**
- * Push conversation history to Mem0.ai
- * @param conversation Array of conversation items with role and transcript
- * @param userId Optional user ID to associate with the memory
- */
+export interface Mem0SearchResult {
+    memory: string
+}
+
 export async function pushConversationToMem0(
     conversation: Array<{ role: string; transcript: string }>,
     userId: string
 ): Promise<void> {
-    if (!mem0Client) {
-        console.warn('MEM0_API_KEY not configured. Skipping Mem0 integration.')
-        return
-    }
-
-    if (conversation.length === 0) {
-        return
-    }
+    if (!mem0Client || conversation.length === 0) return
 
     try {
-        // Format conversation for Mem0 SDK (only user and assistant roles are supported)
         const messages: Mem0Message[] = conversation
             .filter((item) => item.role === 'user' || item.role === 'assistant')
             .map((item) => ({
-                role: item.role === 'user' ? 'user' as const : 'assistant' as const,
+                role: (item.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
                 content: item.transcript,
             }))
 
-        // Use Mem0 SDK to add memory
-        await mem0Client.add(messages, {
-            user_id: userId,
-        })
-
-        console.log('Successfully pushed conversation to Mem0')
-    } catch (error: any) {
+        await addMemory(messages, userId)
+    } catch (error) {
         console.error('Error pushing conversation to Mem0:', error)
-        // Don't throw - allow the flow to continue even if Mem0 fails
+    }
+}
+
+export async function addMemory(
+    messages: Mem0Message[],
+    userId: string
+): Promise<void> {
+    if (!mem0Client || messages.length === 0) return
+
+    try {
+        await mem0Client.add(messages, { user_id: userId })
+    } catch (error) {
+        console.error('Error adding memory to Mem0:', error)
+    }
+}
+
+export async function searchMemories(
+    query: string,
+    userId: string
+): Promise<Mem0SearchResult[]> {
+    if (!mem0Client || !query.trim()) return []
+
+    try {
+        const results = await mem0Client.search(query, { user_id: userId })
+        return results as Mem0SearchResult[]
+    } catch (error) {
+        console.error('Error searching memories from Mem0:', error)
+        throw error
     }
 }
 
