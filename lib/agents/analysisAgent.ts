@@ -3,10 +3,6 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { z } from 'zod'
 import { ExerciseLogSchema, ExerciseLog } from '../schemas/exerciseLog'
 
-/**
- * Extract structured exercise data from workout transcript/conversation
- * Uses AI SDK's generateObject with Zod schema for structured outputs
- */
 export async function extractExerciseData(transcript: string): Promise<ExerciseLog> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
@@ -35,7 +31,6 @@ ${transcript}`
 
   try {
     console.log('[OpenAI] Extracting exercise data from conversation')
-    // Wrap array schema in an object since generateObject requires object schema
     const { object } = await generateObject({
       model: openai('gpt-5'),
       schema: z.object({ exercises: ExerciseLogSchema }),
