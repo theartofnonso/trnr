@@ -1,61 +1,72 @@
 import MemoryClient from 'mem0ai'
+import { ConversationMessage } from './types/conversation'
 
 const MEM0_API_KEY = process.env.MEM0_API_KEY
 const mem0Client = MEM0_API_KEY ? new MemoryClient({ apiKey: MEM0_API_KEY }) : null
-
-export interface Mem0Message {
-    role: 'user' | 'assistant'
-    content: string
-}
 
 export interface Mem0SearchResult {
     memory: string
 }
 
-export async function pushConversationToMem0(
-    conversation: Array<{ role: string; transcript: string }>,
+export async function addMemory(
+    messages: ConversationMessage[],
     userId: string
 ): Promise<void> {
-    if (!mem0Client || conversation.length === 0) return
+    if (!mem0Client) {
+        console.warn('[Mem0] Client not available - MEM0_API_KEY not configured. Skipping save.')
+        return
+    }
+
+    if (messages.length === 0) {
+        console.warn('[Mem0] Messages array is empty. Skipping save.')
+        return
+    }
 
     try {
-        const messages: Mem0Message[] = conversation
-            .filter((item) => item.role === 'user' || item.role === 'assistant')
-            .map((item) => ({
-                role: (item.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
-                content: item.transcript,
-            }))
-
-        await addMemory(messages, userId)
+        console.log('[Mem0] Adding memory', { messageCount: messages.length, userId })
+        await mem0Client.add(messages, { user_id: userId })
+        console.log('[Mem0] Memory added successfully')
     } catch (error) {
-        console.error('Error pushing conversation to Mem0:', error)
+        console.error('[Mem0] Error adding memory:', error)
+        throw error
     }
 }
 
-export async function addMemory(
-    messages: Mem0Message[],
-    userId: string
-): Promise<void> {
-    if (!mem0Client || messages.length === 0) return
-
-    try {
-        await mem0Client.add(messages, { user_id: userId })
-    } catch (error) {
-        console.error('Error adding memory to Mem0:', error)
-    }
+export interface Mem0DateFilter {
+    gte?: string // Greater than or equal to (ISO date string)
+    lte?: string // Less than or equal to (ISO date string)
 }
 
 export async function searchMemories(
     query: string,
-    userId: string
+    userId: string,
+    dateFilter?: Mem0DateFilter
 ): Promise<Mem0SearchResult[]> {
-    if (!mem0Client || !query.trim()) return []
+    if (!mem0Client) {
+        console.warn('[Mem0] Client not available - MEM0_API_KEY not configured. Returning empty results.')
+        return []
+    }
+    
+    if (!query.trim()) {
+        console.warn('[Mem0] Query is empty. Returning empty results.')
+        return []
+    }
 
     try {
-        const results = await mem0Client.search(query, { user_id: userId })
+        const searchOptions: any = {
+            user_id: userId,
+        }
+        
+        if (dateFilter) {
+            searchOptions.created_at = dateFilter
+        }
+
+        console.log('[Mem0] Searching memories', { query, userId, hasDateFilter: !!dateFilter })
+        const results = await mem0Client.search(query, searchOptions)
+        console.log('[Mem0] Search complete', { resultCount: results.length })
         return results as Mem0SearchResult[]
     } catch (error) {
-        console.error('Error searching memories from Mem0:', error)
+        console.error('[Mem0] Error searching memories:', error)
         throw error
     }
 }

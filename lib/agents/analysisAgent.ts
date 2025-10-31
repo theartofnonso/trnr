@@ -34,6 +34,7 @@ Workout transcript:
 ${transcript}`
 
   try {
+    console.log('[OpenAI] Extracting exercise data from conversation')
     // Wrap array schema in an object since generateObject requires object schema
     const { object } = await generateObject({
       model: openai('gpt-5'),
@@ -41,9 +42,10 @@ ${transcript}`
       prompt: extractionPrompt,
     })
 
+    console.log('[OpenAI] Exercise extraction complete', { exerciseCount: object.exercises.length })
     return object.exercises
   } catch (error) {
-    console.error('Error extracting exercise data:', error)
+    console.error('[OpenAI] Error extracting exercise data:', error)
     throw error
   }
 }
