@@ -1,50 +1,25 @@
 import { NextRequest, NextResponse } from "next/server"
 import { extractExerciseData } from "@/lib/agents/analysisAgent"
 import { supabase } from "@/lib/supabase"
-import { ConversationMessage } from "@/lib/types/conversation"
+import { isValidConversation } from "@/lib/validation"
 
-// Force dynamic rendering to prevent caching
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-/**
- * POST endpoint to extract structured exercise data from workout transcript
- * and persist to Supabase
- */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const { conversation } = body
 
-    if (!Array.isArray(conversation) || conversation.length === 0) {
+    if (!isValidConversation(conversation)) {
       return NextResponse.json(
-        { error: "Conversation is required and must be a non-empty array" },
+        { error: 'Invalid conversation format' },
         { status: 400 }
       )
     }
 
-    // Validate conversation structure
-    const isValidConversation = conversation.every(
-      (msg: any): msg is ConversationMessage =>
-        msg &&
-        typeof msg === 'object' &&
-        (msg.role === 'user' || msg.role === 'assistant') &&
-        typeof msg.content === 'string' &&
-        msg.content.length > 0
-    )
-
-    if (!isValidConversation) {
-      return NextResponse.json(
-        { error: 'Conversation must be an array of { role: "user" | "assistant", content: string }' },
-        { status: 400 }
-      )
-    }
-
-    console.log('[API] Extracting exercises using OpenAI', { messageCount: conversation.length })
     const exercises = await extractExerciseData(JSON.stringify(conversation, null, 2))
     console.log('[API] Exercises extracted', { exerciseCount: exercises.length })
-
-    console.log('[API] Saving workout session to Supabase')
     const { data: session, error: sessionError } = await supabase!
       .from('workout_sessions')
       .insert({
@@ -55,20 +30,16 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (sessionError || !session) {
-      console.error("[API] Error creating workout session:", sessionError)
-      return NextResponse.json(
-        { error: "Failed to create workout session" },
-        { status: 500 }
-      )
+      console.error('[API] Supabase error:', sessionError)
+      return NextResponse.json({ error: 'Failed to save workout session' }, { status: 500 })
     }
     
-    console.log('[API] Workout session saved successfully', { sessionId: session.id })
-    
-    return NextResponse.json({ status: true})
+    console.log('[API] Workout session saved', { sessionId: session.id })
+    return NextResponse.json({ status: true })
   } catch (error: any) {
-    console.error("Error extracting exercise data:", error)
+    console.error('[API] Error:', error)
     return NextResponse.json(
-      { error: error.message || "Failed to extract exercise data" },
+      { error: error.message || 'Failed to process request' },
       { status: 500 }
     )
   }
