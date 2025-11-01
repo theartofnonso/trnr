@@ -72,7 +72,7 @@ export default function ConnectButton() {
     <>
       {showToast && (
         <Toast 
-          message="Hold for 1.5 seconds to end session"
+          message="Hold to end session"
           onClose={() => setShowToast(false)}
           variant="info"
         />
