@@ -73,4 +73,3 @@ export async function removeSyncedConversation(id: string): Promise<void> {
     request.onerror = () => reject(request.error)
   })
 }
-
