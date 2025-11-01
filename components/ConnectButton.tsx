@@ -1,10 +1,10 @@
 'use client'
 
-import { Power } from 'lucide-react'
+import { Power, Mic, MicOff } from 'lucide-react'
 import { useVoiceAgent } from '@/hooks/useVoiceAgent'
 
 export default function ConnectButton() {
-  const { isConnected, isConnecting, connect, disconnect } = useVoiceAgent()
+  const { isConnected, isConnecting, isMuted, connect, disconnect, toggleMute } = useVoiceAgent()
 
   const handleToggleConnection = async () => {
     if (isConnected) {
@@ -14,9 +14,14 @@ export default function ConnectButton() {
     }
   }
 
+  const handleToggleMute = () => {
+    toggleMute(!isMuted)
+  }
+
   return (
-    <div className="flex flex-col items-center gap-4">
-      <div className="relative w-20 h-20">
+    <>
+      <div className="flex flex-col items-center gap-4">
+        <div className="relative w-20 h-20">
         {/* Circular progress spinner */}
         {isConnecting && (
           <svg className="absolute inset-0 w-20 h-20 animate-spin" viewBox="0 0 80 80">
@@ -57,13 +62,40 @@ export default function ConnectButton() {
           aria-label={isConnected ? 'Disconnect' : isConnecting ? 'Connecting...' : 'Connect'}
         >
           {isConnected ? (
-            <Power size={24} className="text-accent" />
+            <Power size={24} className="text-green-500" />
           ) : (
             <Power size={24} className="text-text-secondary" />
           )}
         </button>
       </div>
-    </div>
+      </div>
+
+      {/* Mute button - fixed bottom-right corner, only shown when connected */}
+      {isConnected && (
+        <button
+          onClick={handleToggleMute}
+          className={`
+            fixed bottom-8 right-8
+            w-14 h-14 rounded-full
+            flex items-center justify-center
+            ${isMuted 
+              ? 'border-red-500' 
+              : 'border-green-500'
+            }
+            shadow-lg
+            transition-all duration-200
+            hover:scale-110 active:scale-95
+          `}
+          aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
+        >
+          {isMuted ? (
+            <MicOff size={24} className="text-red-500" />
+          ) : (
+            <Mic size={24} className="text-text-secondary" />
+          )}
+        </button>
+      )}
+    </>
   )
 }
 

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { RealtimeAgent, RealtimeSession, RealtimeItem } from '@openai/agents/realtime'
 import { personalTrainerPrompt } from '@/config/personalTrainerPrompt'
 import { Conversation, ConversationMessage } from '@/lib/types/conversation'
+import { saveConversationOffline } from '@/lib/offlineStorage'
 
 const DEFAULT_USER_ID = 'default_user_id'
 
@@ -41,72 +42,59 @@ function formatConversationHistory(history: RealtimeItem[]): Conversation {
 async function extractAndPostExercises(history: RealtimeItem[]) {
   if (history.length === 0) return
 
-  try {
-    const conversation = formatConversationHistory(history)
-    console.log('[VoiceAgent] Extracting exercises and saving session', { messageCount: conversation.length })
+  const conversation = formatConversationHistory(history)
+  
+  // Save locally first
+  await saveConversationOffline(conversation)
+  console.log('[VoiceAgent] Session saved locally', { messageCount: conversation.length })
 
-    // Extract exercises and save to Supabase
+  if (!navigator.onLine) {
+    console.log('[VoiceAgent] Offline - will sync later')
+    return
+  }
+
+  // Attempt sync if online
+  try {
     await fetch('/api/extract-exercises', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ conversation }),
     })
-    console.log('[VoiceAgent] Exercises extracted and saved to Supabase')
-
-    // Also save full conversation to mem0 as fallback via API
-    try {
-      const mem0Response = await fetch('/api/mem0/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          conversation,
-          userId: DEFAULT_USER_ID,
-        }),
-      })
-
-      if (mem0Response.ok) {
-        console.log('[VoiceAgent] Full conversation saved to Mem0')
-      } else {
-        console.error('[VoiceAgent] Failed to save conversation to Mem0')
-      }
-    } catch (err) {
-      console.error('[VoiceAgent] Error saving conversation to Mem0:', err)
-    }
   } catch (err) {
-    console.error('[VoiceAgent] Error extracting exercises:', err)
+    console.error('[VoiceAgent] Extract sync failed:', err)
+  }
+
+  try {
+    await fetch('/api/mem0/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversation, userId: DEFAULT_USER_ID }),
+    })
+  } catch (err) {
+    console.error('[VoiceAgent] Mem0 sync failed:', err)
   }
 }
 
 async function loadLastWeekMemories(): Promise<string> {
   try {
-    const dateRange = getLastWeekDateRange()
-    console.log('[VoiceAgent] Loading last week memories from Mem0', { dateRange })
-
-    // Search for workout-related memories from last week via API
     const response = await fetch('/api/mem0/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         query: 'workout training exercise session fitness goals preferences',
         userId: DEFAULT_USER_ID,
-        dateFilter: dateRange,
+        dateFilter: getLastWeekDateRange(),
       }),
     })
 
-    if (!response.ok) {
-      throw new Error('Failed to search memories')
-    }
+    if (!response.ok) return ''
 
     const { results } = await response.json()
-    console.log('[VoiceAgent] Mem0 search complete', { memoryCount: results.length })
+    if (!results?.length) return ''
 
-    if (results.length === 0) return ''
-
-    return results
-      .map((result: { memory: string }) => result.memory)
-      .join('\n\n')
+    return results.map((r: { memory: string }) => r.memory).join('\n\n')
   } catch (err) {
-    console.error('[VoiceAgent] Error loading last week memories:', err)
+    console.error('[VoiceAgent] Load memories failed:', err)
     return ''
   }
 }
@@ -123,12 +111,12 @@ function closeSession(session: RealtimeSession | null) {
 export function useVoiceAgent() {
   const [isConnected, setIsConnected] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
+  const [isMuted, setIsMuted] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const conversationHistoryRef = useRef<RealtimeItem[]>([])
   const sessionRef = useRef<RealtimeSession | null>(null)
 
   const handleSessionEnd = async () => {
-    console.log('[VoiceAgent] Session ended (transport disconnect)')
     setIsConnected(false)
     await extractAndPostExercises(conversationHistoryRef.current)
   }
@@ -139,25 +127,19 @@ export function useVoiceAgent() {
     setError(null)
     setIsConnecting(true)
 
-    try {
-      // Load last week's memories for context
+  try {
       const lastWeekContext = await loadLastWeekMemories()
-      const enhancedInstructions = lastWeekContext
-        ? `${personalTrainerPrompt}\n\n---\n\n## User Context (Last Week's Training)\n${lastWeekContext}\n\n**IMPORTANT:** Use this context ONLY to personalize your fitness coaching. Reference past workouts, preferences, or goals when relevant. DO NOT use this context to discuss topics outside of fitness and training. Stay focused on your role as a personal trainer.`
+      const instructions = lastWeekContext
+        ? `${personalTrainerPrompt}\n\n---\n\n## Recent Context\n${lastWeekContext}`
         : personalTrainerPrompt
 
-      console.log('[VoiceAgent] Requesting ephemeral key from OpenAI')
       const response = await fetch('/api/ephemeral-key', { cache: 'no-store' })
       if (!response.ok) throw new Error('Failed to get ephemeral key')
 
       const { ephemeralKey } = await response.json()
       if (!ephemeralKey) throw new Error('No ephemeral key received')
 
-      const agent = new RealtimeAgent({
-        name: 'PersonalTrainer',
-        instructions: enhancedInstructions,
-      })
-
+      const agent = new RealtimeAgent({ name: 'PersonalTrainer', instructions })
       const session = new RealtimeSession(agent, { model: 'gpt-realtime' })
       sessionRef.current = session
 
@@ -167,11 +149,13 @@ export function useVoiceAgent() {
 
       session.transport.on('disconnect', handleSessionEnd)
 
-      console.log('[VoiceAgent] Connecting to OpenAI Realtime API')
       await session.connect({ apiKey: ephemeralKey })
-      console.log('[VoiceAgent] Connected to OpenAI Realtime API')
       setIsConnected(true)
       setIsConnecting(false)
+
+      if (navigator.vibrate) {
+        navigator.vibrate(200)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect')
       setIsConnecting(false)
@@ -181,17 +165,22 @@ export function useVoiceAgent() {
   }
 
   const disconnect = async () => {
-    console.log('[VoiceAgent] Manual disconnect initiated')
     const history = conversationHistoryRef.current
 
     closeSession(sessionRef.current)
     sessionRef.current = null
     setIsConnected(false)
+    setIsMuted(false)
     setError(null)
 
     await extractAndPostExercises(history)
     conversationHistoryRef.current = []
-    console.log('[VoiceAgent] Disconnect complete')
+  }
+
+  const toggleMute = (muted: boolean) => {
+    if (!sessionRef.current || !isConnected) return
+    sessionRef.current.mute(muted)
+    setIsMuted(muted)
   }
 
   useEffect(() => {
@@ -201,9 +190,11 @@ export function useVoiceAgent() {
   return {
     isConnected,
     isConnecting,
+    isMuted,
     error,
     connect,
     disconnect,
+    toggleMute,
   }
 }
 

@@ -13,21 +13,17 @@ export async function addMemory(
     userId: string
 ): Promise<void> {
     if (!mem0Client) {
-        console.warn('[Mem0] Client not available - MEM0_API_KEY not configured. Skipping save.')
+        console.warn('[Mem0] Client not available')
         return
     }
 
-    if (messages.length === 0) {
-        console.warn('[Mem0] Messages array is empty. Skipping save.')
-        return
-    }
+    if (messages.length === 0) return
 
     try {
-        console.log('[Mem0] Adding memory', { messageCount: messages.length, userId })
         await mem0Client.add(messages, { user_id: userId })
-        console.log('[Mem0] Memory added successfully')
+        console.log('[Mem0] Memory added', { count: messages.length })
     } catch (error) {
-        console.error('[Mem0] Error adding memory:', error)
+        console.error('[Mem0] Add error:', error)
         throw error
     }
 }
@@ -42,31 +38,19 @@ export async function searchMemories(
     userId: string,
     dateFilter?: Mem0DateFilter
 ): Promise<Mem0SearchResult[]> {
-    if (!mem0Client) {
-        console.warn('[Mem0] Client not available - MEM0_API_KEY not configured. Returning empty results.')
-        return []
-    }
-    
-    if (!query.trim()) {
-        console.warn('[Mem0] Query is empty. Returning empty results.')
-        return []
-    }
+    if (!mem0Client || !query.trim()) return []
 
     try {
-        const searchOptions: any = {
-            user_id: userId,
-        }
-        
+        const searchOptions: any = { user_id: userId }
         if (dateFilter) {
             searchOptions.created_at = dateFilter
         }
 
-        console.log('[Mem0] Searching memories', { query, userId, hasDateFilter: !!dateFilter })
         const results = await mem0Client.search(query, searchOptions)
-        console.log('[Mem0] Search complete', { resultCount: results.length })
+        console.log('[Mem0] Search complete', { count: results.length })
         return results as Mem0SearchResult[]
     } catch (error) {
-        console.error('[Mem0] Error searching memories:', error)
+        console.error('[Mem0] Search error:', error)
         throw error
     }
 }

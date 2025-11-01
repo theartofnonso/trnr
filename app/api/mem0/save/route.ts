@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { addMemory } from '@/lib/mem0'
-import { ConversationMessage } from '@/lib/types/conversation'
+import { isValidConversation } from '@/lib/validation'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -10,48 +10,27 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { conversation, userId } = body
 
-    if (!Array.isArray(conversation) || conversation.length === 0) {
+    if (!isValidConversation(conversation)) {
       return NextResponse.json(
-        { error: 'Conversation is required and must be a non-empty array' },
-        { status: 400 }
-      )
-    }
-
-    // Validate conversation structure
-    const isValidConversation = conversation.every(
-      (msg: any): msg is ConversationMessage =>
-        msg &&
-        typeof msg === 'object' &&
-        (msg.role === 'user' || msg.role === 'assistant') &&
-        typeof msg.content === 'string' &&
-        msg.content.length > 0
-    )
-
-    if (!isValidConversation) {
-      return NextResponse.json(
-        { error: 'Conversation must be an array of { role: "user" | "assistant", content: string }' },
+        { error: 'Invalid conversation format' },
         { status: 400 }
       )
     }
 
     if (!userId || typeof userId !== 'string') {
       return NextResponse.json(
-        { error: 'UserId is required and must be a string' },
+        { error: 'UserId is required' },
         { status: 400 }
       )
     }
 
-    console.log('[API] Saving conversation to Mem0', { messageCount: conversation.length, userId })
     await addMemory(conversation, userId)
-    console.log('[API] Conversation saved to Mem0 successfully')
+    console.log('[API] Conversation saved to Mem0', { messageCount: conversation.length })
 
     return NextResponse.json({ status: true })
   } catch (error: any) {
-    console.error('[API] Error saving conversation to Mem0:', error)
-    return NextResponse.json(
-      { error: error.message || 'Failed to save conversation' },
-      { status: 500 }
-    )
+    console.error('[API] Error:', error)
+    return NextResponse.json({ error: error.message || 'Failed to save' }, { status: 500 })
   }
 }
 
