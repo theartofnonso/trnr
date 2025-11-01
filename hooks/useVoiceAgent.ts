@@ -39,39 +39,36 @@ function formatConversationHistory(history: RealtimeItem[]): Conversation {
     .filter((item): item is ConversationMessage => item !== null)
 }
 
-async function extractAndPostExercises(history: RealtimeItem[]) {
+async function saveAndSyncSession(history: RealtimeItem[], sessionId: string | null) {
   if (history.length === 0) return
 
   const conversation = formatConversationHistory(history)
   
-  // Save locally first
-  await saveConversationOffline(conversation)
-  console.log('[VoiceAgent] Session saved locally', { messageCount: conversation.length })
-
-  if (!navigator.onLine) {
-    console.log('[VoiceAgent] Offline - will sync later')
+  // Don't save or sync if conversation is empty after formatting
+  if (conversation.length === 0) {
+    console.log('[VoiceAgent] Skipping save - no valid conversation data')
     return
   }
+  
+  saveConversationOffline(conversation, sessionId || undefined)
 
-  // Attempt sync if online
-  try {
-    await fetch('/api/extract-exercises', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversation }),
-    })
-  } catch (err) {
-    console.error('[VoiceAgent] Extract sync failed:', err)
-  }
+  if (!navigator.onLine) return
 
   try {
-    await fetch('/api/mem0/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversation, userId: DEFAULT_USER_ID }),
-    })
+    await Promise.all([
+      fetch('/api/extract-exercises', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversation }),
+      }),
+      fetch('/api/mem0/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversation, userId: DEFAULT_USER_ID }),
+      })
+    ])
   } catch (err) {
-    console.error('[VoiceAgent] Mem0 sync failed:', err)
+    console.error('[VoiceAgent] Sync failed:', err)
   }
 }
 
@@ -115,10 +112,12 @@ export function useVoiceAgent() {
   const [error, setError] = useState<string | null>(null)
   const conversationHistoryRef = useRef<RealtimeItem[]>([])
   const sessionRef = useRef<RealtimeSession | null>(null)
+  const currentSessionIdRef = useRef<string | null>(null)
 
   const handleSessionEnd = async () => {
     setIsConnected(false)
-    await extractAndPostExercises(conversationHistoryRef.current)
+    await saveAndSyncSession(conversationHistoryRef.current, currentSessionIdRef.current)
+    currentSessionIdRef.current = null
   }
 
   const connect = async () => {
@@ -143,8 +142,19 @@ export function useVoiceAgent() {
       const session = new RealtimeSession(agent, { model: 'gpt-realtime' })
       sessionRef.current = session
 
+      // Generate session ID for this conversation
+      currentSessionIdRef.current = crypto.randomUUID()
+
       session.on('history_updated', (history: RealtimeItem[]) => {
         conversationHistoryRef.current = history
+        
+        // Save to localStorage on every update for real-time backup
+        const conversation = formatConversationHistory(history)
+        
+        // Only save if we have valid conversation data
+        if (conversation.length > 0 && conversation.every(msg => msg.content.trim().length > 0)) {
+          saveConversationOffline(conversation, currentSessionIdRef.current!)
+        }
       })
 
       session.transport.on('disconnect', handleSessionEnd)
@@ -166,6 +176,7 @@ export function useVoiceAgent() {
 
   const disconnect = async () => {
     const history = conversationHistoryRef.current
+    const sessionId = currentSessionIdRef.current
 
     closeSession(sessionRef.current)
     sessionRef.current = null
@@ -173,8 +184,9 @@ export function useVoiceAgent() {
     setIsMuted(false)
     setError(null)
 
-    await extractAndPostExercises(history)
+    await saveAndSyncSession(history, sessionId)
     conversationHistoryRef.current = []
+    currentSessionIdRef.current = null
   }
 
   const toggleMute = (muted: boolean) => {

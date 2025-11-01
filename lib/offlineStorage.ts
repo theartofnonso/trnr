@@ -1,8 +1,6 @@
 import { Conversation } from './types/conversation'
 
-const DB_NAME = 'trnr-offline'
-const DB_VERSION = 1
-const CONVERSATIONS_STORE = 'conversations'
+const STORAGE_KEY = 'trnr_unsynced_conversations'
 
 export interface StoredConversation {
   id: string
@@ -10,66 +8,31 @@ export interface StoredConversation {
   timestamp: number
 }
 
-function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION)
-
-    request.onerror = () => reject(request.error)
-    request.onsuccess = () => resolve(request.result)
-
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result
-
-      if (!db.objectStoreNames.contains(CONVERSATIONS_STORE)) {
-        const conversationStore = db.createObjectStore(CONVERSATIONS_STORE, { keyPath: 'id' })
-        conversationStore.createIndex('timestamp', 'timestamp', { unique: false })
-      }
-    }
-  })
-}
-
-export async function saveConversationOffline(conversation: Conversation): Promise<string> {
-  const db = await openDB()
-  const id = crypto.randomUUID()
+export function saveConversationOffline(conversation: Conversation, id?: string): string {
+  const sessionId = id || crypto.randomUUID()
+  const stored = getUnsyncedConversations().filter(s => s.id !== sessionId)
   
-  const storedConversation: StoredConversation = {
-    id,
+  stored.push({
+    id: sessionId,
     conversation,
     timestamp: Date.now(),
+  })
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(stored))
+  return sessionId
+}
+
+export function getUnsyncedConversations(): StoredConversation[] {
+  try {
+    const data = localStorage.getItem(STORAGE_KEY)
+    return data ? JSON.parse(data) : []
+  } catch {
+    return []
   }
-
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([CONVERSATIONS_STORE], 'readwrite')
-    const store = transaction.objectStore(CONVERSATIONS_STORE)
-    const request = store.add(storedConversation)
-
-    request.onsuccess = () => resolve(id)
-    request.onerror = () => reject(request.error)
-  })
 }
 
-export async function getUnsyncedConversations(): Promise<StoredConversation[]> {
-  const db = await openDB()
-
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([CONVERSATIONS_STORE], 'readonly')
-    const store = transaction.objectStore(CONVERSATIONS_STORE)
-    const request = store.getAll()
-
-    request.onsuccess = () => resolve(request.result)
-    request.onerror = () => reject(request.error)
-  })
-}
-
-export async function removeSyncedConversation(id: string): Promise<void> {
-  const db = await openDB()
-
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([CONVERSATIONS_STORE], 'readwrite')
-    const store = transaction.objectStore(CONVERSATIONS_STORE)
-    const request = store.delete(id)
-
-    request.onsuccess = () => resolve()
-    request.onerror = () => reject(request.error)
-  })
+export function removeSyncedConversation(id: string): void {
+  const stored = getUnsyncedConversations()
+  const filtered = stored.filter(s => s.id !== id)
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered))
 }

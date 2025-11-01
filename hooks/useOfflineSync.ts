@@ -1,10 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import {
-    getUnsyncedConversations,
-    removeSyncedConversation,
-} from '@/lib/offlineStorage'
+import { getUnsyncedConversations, removeSyncedConversation } from '@/lib/offlineStorage'
+import { isValidConversation } from '@/lib/validation'
 
 const DEFAULT_USER_ID = 'default_user_id'
 
@@ -15,75 +13,60 @@ export function useOfflineSync() {
     const syncData = async () => {
         if (!navigator.onLine) return
 
+        const unsyncedConversations = getUnsyncedConversations()
+        if (unsyncedConversations.length === 0) return
+
         setIsSyncing(true)
 
-        try {
-            const unsyncedConversations = await getUnsyncedConversations()
-            if (unsyncedConversations.length === 0) {
-                setIsSyncing(false)
-                return
+        for (const stored of unsyncedConversations) {
+            // Skip invalid conversations
+            if (!isValidConversation(stored.conversation)) {
+                console.log('[Sync] Removing invalid conversation:', stored.id)
+                removeSyncedConversation(stored.id)
+                continue
             }
 
-            console.log('[Sync] Syncing', unsyncedConversations.length, 'conversations')
+            try {
+                const [extractResponse, mem0Response] = await Promise.all([
+                    fetch('/api/extract-exercises', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ conversation: stored.conversation }),
+                    }),
+                    fetch('/api/mem0/save', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            conversation: stored.conversation,
+                            userId: DEFAULT_USER_ID,
+                        }),
+                    })
+                ])
 
-            for (const stored of unsyncedConversations) {
-                try {
-                    let extractSuccess = false
-                    let mem0Success = false
-
-                     try {
-                         const extractResponse = await fetch('/api/extract-exercises', {
-                             method: 'POST',
-                             headers: { 'Content-Type': 'application/json' },
-                             body: JSON.stringify({ conversation: stored.conversation }),
-                         })
-                         extractSuccess = extractResponse.ok
-                     } catch (err) {
-                         console.error('[Sync] Extract failed:', err)
-                     }
-
-                     try {
-                         const mem0Response = await fetch('/api/mem0/save', {
-                             method: 'POST',
-                             headers: { 'Content-Type': 'application/json' },
-                             body: JSON.stringify({
-                                 conversation: stored.conversation,
-                                 userId: DEFAULT_USER_ID,
-                             }),
-                         })
-                         mem0Success = mem0Response.ok
-                     } catch (err) {
-                         console.error('[Sync] Mem0 failed:', err)
-                     }
-
-                     if (extractSuccess && mem0Success) {
-                         await removeSyncedConversation(stored.id)
-                         console.log('[Sync] ✓ Synced:', stored.id)
-                     }
-                 } catch (err) {
-                     console.error('[Sync] Error:', err)
-                 }
-             }
-
-             await updatePendingCount()
-         } catch (err) {
-             console.error('[Sync] Error:', err)
-         } finally {
-             setIsSyncing(false)
-         }
-     }
-
-    const updatePendingCount = async () => {
-        try {
-            const conversations = await getUnsyncedConversations()
-            setPendingCount(conversations.length)
-        } catch (err) {
-            console.error('[Sync] Error updating pending count:', err)
+                if (extractResponse.ok && mem0Response.ok) {
+                    removeSyncedConversation(stored.id)
+                    console.log('[Sync] ✓ Synced:', stored.id)
+                } else if (extractResponse.status === 400 || mem0Response.status === 400) {
+                    // Remove invalid data that will never sync successfully
+                    console.log('[Sync] Removing conversation with 400 error:', stored.id)
+                    removeSyncedConversation(stored.id)
+                } else {
+                    console.error('[Sync] Error syncing:', stored.id, {
+                        extractStatus: extractResponse.status,
+                        mem0Status: mem0Response.status
+                    })
+                }
+            } catch (err) {
+                console.error('[Sync] Failed:', stored.id, err)
+            }
         }
+
+        setPendingCount(getUnsyncedConversations().length)
+        setIsSyncing(false)
     }
 
     useEffect(() => {
-        updatePendingCount()
+        setPendingCount(getUnsyncedConversations().length)
 
         const handleOnline = () => syncData()
         window.addEventListener('online', handleOnline)

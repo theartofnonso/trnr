@@ -11,6 +11,11 @@ export async function POST(req: NextRequest) {
     const { conversation, userId } = body
 
     if (!isValidConversation(conversation)) {
+      console.error('[API] Invalid conversation:', {
+        isArray: Array.isArray(conversation),
+        length: conversation?.length,
+        sample: conversation?.[0]
+      })
       return NextResponse.json(
         { error: 'Invalid conversation format' },
         { status: 400 }
@@ -18,6 +23,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!userId || typeof userId !== 'string') {
+      console.error('[API] Invalid userId:', { userId, type: typeof userId })
       return NextResponse.json(
         { error: 'UserId is required' },
         { status: 400 }
