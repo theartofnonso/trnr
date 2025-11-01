@@ -131,29 +131,42 @@ export default function ConnectButton() {
       </div>
       </div>
 
-      {/* Mute button - fixed bottom-right corner, only shown when connected */}
+      {/* Modern toggle mute button - fixed bottom-right corner, only shown when connected */}
       {isConnected && (
         <button
           onClick={handleToggleMute}
           className={`
             fixed bottom-8 right-8
-            w-14 h-14 rounded-full
-            flex items-center justify-center
+            w-16 h-8 rounded-full
+            flex items-center
+            backdrop-blur-xl
+            border border-white/10
+            shadow-[0_4px_24px_rgba(0,0,0,0.3)]
+            transition-all duration-300 ease-out
+            hover:scale-105 active:scale-95
             ${isMuted 
-              ? 'border-red-500' 
-              : 'border-green-500'
+              ? 'bg-gradient-to-br from-red-950/60 to-red-900/40 justify-end px-1' 
+              : 'bg-gradient-to-br from-emerald-950/60 to-emerald-900/40 justify-start px-1'
             }
-            shadow-lg
-            transition-all duration-200
-            hover:scale-110 active:scale-95
           `}
           aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
         >
-          {isMuted ? (
-            <MicOff size={24} className="text-red-500" />
-          ) : (
-            <Mic size={24} className="text-text-secondary" />
-          )}
+          <div className={`
+            w-6 h-6 rounded-full
+            flex items-center justify-center
+            backdrop-blur-sm
+            transition-all duration-300
+            ${isMuted 
+              ? 'bg-red-500/90 shadow-[0_0_12px_rgba(239,68,68,0.6)]' 
+              : 'bg-emerald-500/90 shadow-[0_0_12px_rgba(34,197,94,0.6)]'
+            }
+          `}>
+            {isMuted ? (
+              <MicOff size={14} className="text-white" strokeWidth={2.5} />
+            ) : (
+              <Mic size={14} className="text-white" strokeWidth={2.5} />
+            )}
+          </div>
         </button>
       )}
     </>
