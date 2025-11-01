@@ -7,8 +7,12 @@ import Toast from './Toast'
 
 const LONG_PRESS_DURATION = 1500 // 1.5 seconds
 
-export default function ConnectButton() {
-  const { isConnected, isConnecting, isMuted, connect, disconnect, toggleMute } = useVoiceAgent()
+interface ConnectButtonProps {
+  userId: string
+}
+
+export default function ConnectButton({ userId }: ConnectButtonProps) {
+  const { isConnected, isConnecting, isMuted, connect, disconnect, toggleMute } = useVoiceAgent(userId)
   const [isLongPressing, setIsLongPressing] = useState(false)
   const [longPressProgress, setLongPressProgress] = useState(0)
   const [showToast, setShowToast] = useState(false)

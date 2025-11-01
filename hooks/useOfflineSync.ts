@@ -4,14 +4,12 @@ import { useEffect, useState } from 'react'
 import { getUnsyncedConversations, removeSyncedConversation } from '@/lib/offlineStorage'
 import { isValidConversation } from '@/lib/validation'
 
-const DEFAULT_USER_ID = 'default_user_id'
-
-export function useOfflineSync() {
+export function useOfflineSync(userId: string | null) {
     const [isSyncing, setIsSyncing] = useState(false)
     const [pendingCount, setPendingCount] = useState(0)
 
     const syncData = async () => {
-        if (!navigator.onLine) return
+        if (!navigator.onLine || !userId) return
 
         const unsyncedConversations = getUnsyncedConversations()
         if (unsyncedConversations.length === 0) return
@@ -38,7 +36,7 @@ export function useOfflineSync() {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             conversation: stored.conversation,
-                            userId: DEFAULT_USER_ID,
+                            userId,
                         }),
                     })
                 ])
@@ -79,7 +77,7 @@ export function useOfflineSync() {
             window.removeEventListener('online', handleOnline)
             clearInterval(syncInterval)
         }
-    }, [])
+    }, [userId])
 
     return {
         isSyncing,

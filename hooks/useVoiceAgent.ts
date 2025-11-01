@@ -6,8 +6,6 @@ import { personalTrainerPrompt } from '@/config/personalTrainerPrompt'
 import { Conversation, ConversationMessage } from '@/lib/types/conversation'
 import { saveConversationOffline } from '@/lib/offlineStorage'
 
-const DEFAULT_USER_ID = 'default_user_id'
-
 function getLastWeekDateRange(): { gte: string; lte: string } {
   const now = new Date()
   const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
@@ -39,7 +37,7 @@ function formatConversationHistory(history: RealtimeItem[]): Conversation {
     .filter((item): item is ConversationMessage => item !== null)
 }
 
-async function saveAndSyncSession(history: RealtimeItem[], sessionId: string | null) {
+async function saveAndSyncSession(history: RealtimeItem[], sessionId: string | null, userId: string) {
   if (history.length === 0) return
 
   const conversation = formatConversationHistory(history)
@@ -64,7 +62,7 @@ async function saveAndSyncSession(history: RealtimeItem[], sessionId: string | n
       fetch('/api/mem0/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversation, userId: DEFAULT_USER_ID }),
+        body: JSON.stringify({ conversation, userId }),
       })
     ])
   } catch (err) {
@@ -72,14 +70,14 @@ async function saveAndSyncSession(history: RealtimeItem[], sessionId: string | n
   }
 }
 
-async function loadLastWeekMemories(): Promise<string> {
+async function loadLastWeekMemories(userId: string): Promise<string> {
   try {
     const response = await fetch('/api/mem0/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         query: 'workout training exercise session fitness goals preferences',
-        userId: DEFAULT_USER_ID,
+        userId,
         dateFilter: getLastWeekDateRange(),
       }),
     })
@@ -105,7 +103,7 @@ function closeSession(session: RealtimeSession | null) {
   }
 }
 
-export function useVoiceAgent() {
+export function useVoiceAgent(userId: string) {
   const [isConnected, setIsConnected] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
@@ -116,7 +114,7 @@ export function useVoiceAgent() {
 
   const handleSessionEnd = async () => {
     setIsConnected(false)
-    await saveAndSyncSession(conversationHistoryRef.current, currentSessionIdRef.current)
+    await saveAndSyncSession(conversationHistoryRef.current, currentSessionIdRef.current, userId)
     currentSessionIdRef.current = null
   }
 
@@ -127,7 +125,7 @@ export function useVoiceAgent() {
     setIsConnecting(true)
 
   try {
-      const lastWeekContext = await loadLastWeekMemories()
+      const lastWeekContext = await loadLastWeekMemories(userId)
       const instructions = lastWeekContext
         ? `${personalTrainerPrompt}\n\n---\n\n## Recent Context\n${lastWeekContext}`
         : personalTrainerPrompt
@@ -184,7 +182,7 @@ export function useVoiceAgent() {
     setIsMuted(false)
     setError(null)
 
-    await saveAndSyncSession(history, sessionId)
+    await saveAndSyncSession(history, sessionId, userId)
     conversationHistoryRef.current = []
     currentSessionIdRef.current = null
   }
